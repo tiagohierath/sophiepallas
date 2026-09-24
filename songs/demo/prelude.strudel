@@ -1,0 +1,3 @@
+// shared by every section of this song
+samples('http://localhost:5432')
+setcps(0.5)

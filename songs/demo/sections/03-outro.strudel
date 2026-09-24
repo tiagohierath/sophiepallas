@@ -1,0 +1,2 @@
+// cycles: 8
+note("<c2 g1>").s("sawtooth").cutoff(sine.range(200, 900).slow(8)).gain(0.4).room(0.7)

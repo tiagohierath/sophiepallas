@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# sophie-nectar: rebuild the panel
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+cd "$ROOT/tui"
+nix shell nixpkgs#go --command env CGO_ENABLED=0 go build -buildvcs=false -o "$ROOT/bin/nectar" .
+echo "-> $ROOT/bin/nectar"

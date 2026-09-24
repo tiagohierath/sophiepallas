@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# inner half of bin/render, runs with node + chromium on PATH
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+SONG=${1:?usage: render <song> [section-name-filter]}
+FILTER=${2:-}
+SRC="$ROOT/songs/$SONG/sections"
+OUT="$ROOT/songs/$SONG/render"
+PRELUDE="$ROOT/songs/$SONG/prelude.strudel"
+BIN="$ROOT/.node/node_modules/.bin"
+
+[ -d "$SRC" ] || { echo "no such song: $SRC"; exit 1; }
+mkdir -p "$OUT"
+export WIRBEL_BROWSER=$(command -v chromium)
+
+# serve ./samples so samples('http://localhost:5432') works, stop it on exit
+SAMPLER=""
+compgen -G "$ROOT/samples/*" > /dev/null && {
+  (cd "$ROOT/samples" && "$BIN/sampler" > /tmp/sophie-nectar-sampler.log 2>&1) &
+  SAMPLER=$!
+  for i in $(seq 30); do curl -sf http://localhost:5432/ > /dev/null && break; sleep 0.5; done
+} || :
+
+# a prelude holds the tempo, the sample paths and any helper the whole song shares,
+# glued on top of each section before it is handed to wirbel
+WORK=$(mktemp -d)
+trap 'kill $SAMPLER 2>/dev/null || true; rm -rf "$WORK"' EXIT
+
+for f in "$SRC"/*.strudel; do
+  name=$(basename "$f" .strudel)
+  [ -z "$FILTER" ] || [[ "$name" == *"$FILTER"* ]] || continue
+
+  src="$f"
+  [ -f "$PRELUDE" ] && { cat "$PRELUDE" "$f" > "$WORK/$name.strudel"; src="$WORK/$name.strudel"; } || :
+
+  # per-section length: a `// cycles: N` or `// duration: N` comment on any line
+  cycles=$(grep -oP '^\s*//\s*cycles:\s*\K[0-9.]+' "$f" | head -1 || true)
+  secs=$(grep -oP '^\s*//\s*duration:\s*\K[0-9.]+' "$f" | head -1 || true)
+  len=(--cycles "${cycles:-16}")
+  [ -z "$secs" ] || len=(--duration "$secs")
+
+  echo "== $name ${len[*]}"
+  "$BIN/wirbel" "$src" --format wav "${len[@]}" --target "$OUT" --force
+done

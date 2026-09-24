@@ -1,0 +1,5 @@
+// cycles: 8
+stack(
+  note("<c2 g1>").s("sawtooth").cutoff(400).gain(0.45),
+  s("blip*2").gain(0.35).room(0.4)
+)

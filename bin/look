@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# sophie-nectar: see the song. waveforms, spectrograms, levels.
+# usage: bin/look <song> [section-name-filter]
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+SONG=${1:?usage: look <song> [section-name-filter]}
+FILTER=${2:-}
+RENDER="$ROOT/songs/$SONG/render"
+OUT="$ROOT/songs/$SONG/look"
+
+[ -d "$RENDER" ] || { echo "nothing rendered yet, run bin/render $SONG"; exit 1; }
+mkdir -p "$OUT"
+
+# the picture is normalized so quiet sections are still readable, the numbers below
+# are the honest ones
+pics() {
+  local lift
+  lift=$(awk -v p="$3" 'BEGIN { printf "%.1f", -1 - p }')
+  ffmpeg -hide_banner -loglevel error -i "$1" \
+    -filter_complex "volume=${lift}dB,showwavespic=s=1600x260:colors=#d94f9a|#7a4fd9:split_channels=1:draw=full:scale=sqrt" \
+    -frames:v 1 "$OUT/$2.png" -y
+  ffmpeg -hide_banner -loglevel error -i "$1" \
+    -lavfi "showspectrumpic=s=1600x420:legend=1:color=intensity" \
+    -frames:v 1 "$OUT/$2-spectrum.png" -y
+}
+
+# one line per wav: duration, peak dBFS, mean dBFS, and a word when something is off
+report() {
+  local wav=$1 name=$2 probe dur mean note=""
+  probe=$(ffmpeg -hide_banner -i "$wav" -af volumedetect -f null - 2>&1)
+  dur=$(printf '%s\n' "$probe" | grep -oP 'Duration: \K[0-9:.]+' | head -1 | cut -d. -f1)
+  PEAK=$(printf '%s\n' "$probe" | grep -oP 'max_volume: \K-?[0-9.]+')
+  local peak=$PEAK
+  mean=$(printf '%s\n' "$probe" | grep -oP 'mean_volume: \K-?[0-9.]+')
+  awk -v p="$peak" 'BEGIN { exit !(p > -0.5) }' && note="CLIPPED"
+  awk -v p="$peak" 'BEGIN { exit !(p < -50) }' && note="SILENT"
+  printf "%-22s %10s %10s dB %8s dB  %s\n" "$name" "${dur#00:}" "$peak" "$mean" "$note"
+}
+
+printf "%-22s %10s %13s %11s\n" "section" "length" "peak" "mean"
+printf -- "------------------------------------------------------------------\n"
+for wav in "$RENDER"/*.wav; do
+  name=$(basename "$wav" .wav)
+  [ "$name" = final ] && continue
+  [ -z "$FILTER" ] || [[ "$name" == *"$FILTER"* ]] || continue
+  report "$wav" "$name"
+  pics "$wav" "$name" "$PEAK"
+done
+
+[ -f "$RENDER/final.wav" ] && {
+  printf -- "------------------------------------------------------------------\n"
+  report "$RENDER/final.wav" final
+  pics "$RENDER/final.wav" final "$PEAK"
+} || :
+
+echo
+echo "pictures in $OUT"
+
+# kitty draws them right here, no image viewer needed
+[ -f "$OUT/final.png" ] && [ -t 1 ] && command -v kitten > /dev/null && {
+  kitten icat --align left "$OUT/final.png"
+  kitten icat --align left "$OUT/final-spectrum.png"
+} || :

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# sophie-nectar: render sections to wav
+# usage: bin/render <song> [section-name-filter]
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+exec nix shell nixpkgs#nodejs_22 nixpkgs#ungoogled-chromium --command "$ROOT/bin/_render" "$@"

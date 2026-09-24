@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# sophie-nectar: stitch rendered sections into one track
+# usage: bin/stitch <song> [crossfade-seconds]
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+SONG=${1:?usage: stitch <song> [crossfade-seconds]}
+XF=${2:-0}
+DIR="$ROOT/songs/$SONG"
+OUT="$DIR/render"
+FINAL="$OUT/final.wav"
+
+# order comes from arrangement.txt (one section name per line, repeats allowed),
+# or from filename order when there is no arrangement
+ORDER=()
+[ -f "$DIR/arrangement.txt" ] &&
+  mapfile -t ORDER < <(grep -v '^\s*\(#\|$\)' "$DIR/arrangement.txt") ||
+  mapfile -t ORDER < <(cd "$OUT" && ls *.wav 2>/dev/null | grep -v '^final.wav$' | sed 's/\.wav$//')
+
+[ ${#ORDER[@]} -gt 0 ] || { echo "nothing rendered in $OUT"; exit 1; }
+for s in "${ORDER[@]}"; do
+  [ -f "$OUT/$s.wav" ] || { echo "missing section: $OUT/$s.wav"; exit 1; }
+done
+echo "== ${ORDER[*]}"
+
+# no crossfade: plain butt-joint concat, sample accurate
+[ "$XF" = 0 ] && {
+  LIST=$(mktemp)
+  for s in "${ORDER[@]}"; do printf "file '%s'\n" "$OUT/$s.wav" >> "$LIST"; done
+  ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i "$LIST" -c copy "$FINAL" -y
+  rm -f "$LIST"
+  echo "-> $FINAL"
+  exit 0
+} || :
+
+# crossfade: chain acrossfade pairwise
+INPUTS=() ; FILTER="" ; PREV="0:a"
+for i in "${!ORDER[@]}"; do INPUTS+=(-i "$OUT/${ORDER[$i]}.wav"); done
+for i in $(seq 1 $((${#ORDER[@]} - 1))); do
+  FILTER+="[$PREV][$i:a]acrossfade=d=$XF:c1=tri:c2=tri[x$i];"
+  PREV="x$i"
+done
+ffmpeg -hide_banner -loglevel error "${INPUTS[@]}" -filter_complex "${FILTER%;}" -map "[$PREV]" "$FINAL" -y
+echo "-> $FINAL"

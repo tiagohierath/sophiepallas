@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# sophie-nectar: take any audio file and file it as a usable sample
+# usage: bin/sample <file> [name]     with no arguments, lists what you have
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+DIR="$ROOT/samples"
+
+[ $# -eq 0 ] && {
+  for d in "$DIR"/*/; do
+    n=$(basename "$d")
+    printf "%-20s %s\n" "$n" "$(ls "$d" | wc -l) files"
+  done
+  exit 0
+} || :
+
+SRC=${1:?usage: sample <file> [name]}
+[ -f "$SRC" ] || { echo "no such file: $SRC"; exit 1; }
+
+# a strudel sound name has to survive mini notation, so keep it to letters and digits
+RAW=${2:-$(basename "${SRC%.*}")}
+NAME=$(printf '%s' "$RAW" | tr 'A-Z' 'a-z' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//')
+[ -n "$NAME" ] || { echo "cannot make a sound name out of $RAW"; exit 1; }
+
+mkdir -p "$DIR/$NAME"
+N=$(ls "$DIR/$NAME" | wc -l)
+OUT="$DIR/$NAME/$NAME-$(printf '%02d' "$N").wav"
+
+# peak normalize to -1 dB, cut the silence at the head, keep everything else intact
+PEAK=$(ffmpeg -hide_banner -i "$SRC" -af volumedetect -f null - 2>&1 | grep -oP 'max_volume: \K-?[0-9.]+')
+LIFT=$(awk -v p="${PEAK:-0}" 'BEGIN { printf "%.1f", -1 - p }')
+ffmpeg -hide_banner -loglevel error -i "$SRC" \
+  -af "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.02,volume=${LIFT}dB" \
+  -ar 44100 "$OUT" -y
+
+printf '%s\n' "$OUT"
+echo "use it as: s(\"$NAME\")   pick one with: n(\"<0 1>\").s(\"$NAME\")"

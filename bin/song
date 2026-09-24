@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# sophie-nectar: render every section, stitch, then play it
+# usage: bin/song <song> [crossfade-seconds]
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+SONG=${1:?usage: song <song> [crossfade-seconds]}
+"$ROOT/bin/render" "$SONG"
+"$ROOT/bin/stitch" "$SONG" "${2:-0}"
+setsid mpv --no-video "$ROOT/songs/$SONG/render/final.wav" > /dev/null 2>&1 &
+echo "playing in mpv"

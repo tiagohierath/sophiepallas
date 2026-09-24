@@ -1,0 +1,7 @@
+// cycles: 16
+stack(
+  s("bd ~ ~ bd ~ ~ bd ~").gain(0.9),
+  s("~ hh ~ hh ~ hh ~ hh").gain(0.35),
+  note("<c2 g1 as1 f1>").s("sawtooth").cutoff(800).gain(0.5),
+  s("blip*4").gain(0.25).room(0.5)
+)

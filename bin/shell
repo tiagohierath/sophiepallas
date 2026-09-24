@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# sophie-nectar: a shell with the whole tape room on PATH
+# sox, rubberband, ffmpeg, mpv. recipes are in SOPHIE-NECTAR.md
+exec nix shell nixpkgs#sox nixpkgs#rubberband nixpkgs#ffmpeg nixpkgs#mpv
