@@ -193,8 +193,14 @@ the same name and they stack, so `n("<0 1 2>").s("birds")` picks between them.
 - Renders run faster than real time, but a ten minute song is still a minute or two of
   chromium work. Render one section at a time with `R` while writing.
 - Crossfading shortens the song by the fade time at every join.
-- Strudel's built in drums and synths are inside the bundle, so rendering works offline.
-  Only `samples('github:...')` needs the network.
+- **`.room()` does nothing in an offline render.** Two sections identical except for
+  `.room(0.6)` come out byte for byte the same. The reverb impulse is built
+  asynchronously and the render finishes first. `.delay()` does work. Reverb belongs to
+  the tape machine: `sox in.wav out.wav reverb 60 50 100`.
+- **The classic drum names are fetched, not bundled.** `s("bd sd hh oh")` rendered with
+  the network cut off comes out at -91 dB, silence. Strudel pulls them from github at
+  render time. Synths and a few synthesized drums are compiled in and do work offline.
+- Renders are otherwise deterministic: the same section rendered twice is byte identical.
 
 ## Stack
 
