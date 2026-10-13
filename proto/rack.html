@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>sophie nectar rack</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#171310; --rail:#0f0c0a; --line:#42382c; --ink:#f4e8d2; --amber:#e9a63a; }
+  * { box-sizing:border-box; border-radius:0; }
+  html,body { margin:0; background:var(--rail); color:var(--ink); }
+  body { font-family:"JetBrains Mono",monospace; font-size:12px; }
+  .rack { max-width:980px; margin:0 auto; display:flex; flex-direction:column; gap:4px; padding:4px; }
+  .unit { border:1px solid var(--line); background:var(--bg); }
+  .unit > b { display:block; padding:3px 8px; font-weight:800; color:var(--amber);
+    border-bottom:1px solid var(--line); text-transform:uppercase; letter-spacing:.12em; }
+  .unit iframe { display:block; width:100%; height:420px; border:0; }
+</style>
+</head>
+<body>
+<div class="rack">
+  <div class="unit"><b>mono82</b><iframe src="./mono82/" title="mono82"></iframe></div>
+  <div class="unit"><b>dough keyboard</b><iframe src="./synth.html" title="dough keyboard"></iframe></div>
+</div>
+<script>
+  // Same-origin, so each unit can grow to its tool's real height.
+  document.querySelectorAll('iframe').forEach(f => f.addEventListener('load', () => {
+    const d = f.contentDocument.documentElement;
+    new ResizeObserver(() => f.style.height = d.scrollHeight + 'px').observe(d);
+  }));
+</script>
+</body>
+</html>

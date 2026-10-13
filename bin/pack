@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# sophie-nectar: vendor the classic Dirt-Samples pack, and relink the one directory
+# the renderer serves. run it once, bin/render keeps it fresh after that.
+# usage: bin/pack
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+PACKS="$ROOT/packs"
+SERVE="$PACKS/.serve"
+DIRT="$PACKS/dirt-samples"
+
+# cloned once and then left alone, so bd is the same bd next year, with no network
+# at render time. delete packs/dirt-samples and run this again to get it back.
+[ -d "$DIRT" ] || {
+  echo "== cloning tidalcycles/Dirt-Samples"
+  git clone --quiet --depth 1 https://github.com/tidalcycles/Dirt-Samples "$DIRT"
+  du -sh "$DIRT"
+}
+
+# the sampler serves exactly one directory, and it ignores folders that are symlinks,
+# so the served root is real folders holding symlinks to the real audio. no copies,
+# and samples/ stays yours alone: nothing from a pack is ever written into it.
+rm -rf "$SERVE"
+mkdir -p "$SERVE"
+for p in "$PACKS"/*/; do cp -rsf "$p"* "$SERVE/"; done
+
+# your own sounds win outright: a folder of yours replaces the pack folder of the same
+# name instead of mixing with it, so s("blip") is your blip and nobody else's
+compgen -G "$ROOT/samples/*/" > /dev/null && {
+  for d in "$ROOT/samples"/*/; do
+    rm -rf "$SERVE/$(basename "$d")"
+    cp -rs "${d%/}" "$SERVE/"
+  done
+} || :
+
+echo "== packs $(ls -d "$SERVE"/*/ | wc -l) banks, dirt-samples pinned at $(git -C "$DIRT" rev-parse --short HEAD)"

@@ -52,12 +52,29 @@ type song struct {
 	stamp    string // changes whenever anything on disk moves
 }
 
+// a watch render, finished in the background and handed back to the main loop
+type render struct {
+	name string
+	out  string
+	err  error
+}
+
 type app struct {
 	root, name string
 	song       song
 	cursor     int
 	status     string
 	shapeCols  int
+	keys       chan byte   // the only reader of stdin, shared with the "any key" waits
+	view       string      // "song" or "sounds"
+	soundTop   int         // first line of the sounds browser on screen
+	watch      string      // section being watched, empty when watch is off
+	watchStamp string      // the watched file as it was when the last render started
+	rendering  bool        // a watch render is in flight, do not start another
+	renders    chan render // finished watch renders
+	playing    string      // what mpv has, for the playhead
+	playLen    float64     // and how long it is
+	looping    bool        // it is a loop, so it is still running
 }
 
 func main() {
@@ -73,7 +90,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	a := &app{root: root, name: name, status: "ready"}
+	a := &app{
+		root: root, name: name, status: "ready", view: "song",
+		keys:    make(chan byte, 8),
+		renders: make(chan render, 1),
+	}
 	w, _ := termSize()
 	a.shapeCols = shapeWidth(w)
 	a.song = load(root, name, a.shapeCols)
@@ -81,7 +102,9 @@ func main() {
 	raw()
 	defer leave()
 
-	keys := make(chan byte, 8)
+	// one reader of stdin for the whole program: everything that waits for a key,
+	// including the "any key" prompts, takes it off this channel
+	keys := a.keys
 	go func() {
 		var b [1]byte
 		for {
@@ -116,7 +139,11 @@ func main() {
 			if stamp(a.root, a.name) != a.song.stamp {
 				a.song = load(a.root, a.name, a.shapeCols)
 			}
+			a.poll()
 			a.draw() // also moves the playhead
+		case res := <-a.renders:
+			a.finish(res)
+			a.draw()
 		case k := <-keys:
 			if a.press(k) {
 				leave()
@@ -129,23 +156,34 @@ func main() {
 
 // returns true when it is time to leave
 func (a *app) press(k byte) bool {
+	if a.view == "sounds" {
+		return a.pressSounds(k)
+	}
 	secs := a.song.sections
 	switch k {
 	case 'j', 'n':
 		if a.cursor < len(secs)-1 {
 			a.cursor++
+			a.follow()
 		}
 	case 'k':
 		if a.cursor > 0 {
 			a.cursor--
+			a.follow()
 		}
 	case 'g':
 		a.cursor = 0
+		a.follow()
 	case 'G':
 		a.cursor = len(secs) - 1
-	case 'r': // the whole song
+		a.follow()
+	case 'r': // the whole song, with the sources it came from saved first
+		snap := a.snapshot()
 		a.act("render", a.script("render"), a.name)
 		a.act("stitch", a.script("stitch"), a.name)
+		if snap != "" {
+			a.status = snap + "   " + a.status
+		}
 	case 'R': // just the section under the cursor
 		if s, ok := a.at(); ok {
 			a.act("render "+s.name, a.script("render"), a.name, s.name)
@@ -158,19 +196,60 @@ func (a *app) press(k byte) bool {
 		}
 	case 'L':
 		a.act("look", a.script("look"), a.name)
-	case 'p':
-		a.play(filepath.Join(a.dir(), "render", "final.wav"), "final")
-	case '\r', '\n': // listen to the section under the cursor
+	case 'w': // hands off rendering: save in Helix, hear the loop
+		a.toggleWatch()
+	case 'a':
 		if s, ok := a.at(); ok {
-			a.play(filepath.Join(a.dir(), "render", s.name+".wav"), s.name)
+			a.arrange(s.name)
+		}
+	case 'o':
+		a.view = "sounds"
+	case 'p': // the stitched song, one pass
+		total, _ := a.song.total()
+		a.play(filepath.Join(a.dir(), "render", "final.wav"), "final", total, false)
+	case '\r', '\n': // listen to the section under the cursor, round and round
+		if s, ok := a.at(); ok {
+			a.play(filepath.Join(a.dir(), "render", s.name+".wav"), s.name, s.length(), true)
 		}
 	case ' ':
 		stop()
-		a.status = "stopped"
+		a.playing, a.status = "", "stopped"
 	case 'q', 3:
 		return true
 	}
 	return false
+}
+
+// the sounds browser only scrolls, so the list can be read without losing the song
+func (a *app) pressSounds(k byte) bool {
+	switch k {
+	case 'j', 'n':
+		a.soundTop++
+	case 'k':
+		a.soundTop--
+	case 'g':
+		a.soundTop = 0
+	case 'G':
+		a.soundTop = 1 << 20 // the draw clamps it to the real end
+	case 'o':
+		a.view = "song"
+	case 'q', 3:
+		return true
+	}
+	return false
+}
+
+// while something is playing, moving the cursor moves what you hear, so walking
+// the list is listening to it. Silence stays silent.
+func (a *app) follow() {
+	if !a.looping || a.rendering {
+		return
+	}
+	s, ok := a.at()
+	if !ok {
+		return
+	}
+	a.play(filepath.Join(a.dir(), "render", s.name+".wav"), s.name, s.length(), true)
 }
 
 func (a *app) dir() string            { return filepath.Join(a.root, "songs", a.name) }

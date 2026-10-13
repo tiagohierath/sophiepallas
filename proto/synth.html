@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>nectar synth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #171310; --panel: #1f1a15; --panel2: #261f18; --line: #42382c;
+    --ink: #f4e8d2; --amber: #e9a63a; --amber-hi: #ffc65a; --amber-dim: #b07f2e;
+    --rust: #d05a34; --sage: #86b89a;
+  }
+  * { box-sizing: border-box; border-radius: 0; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.5;
+    padding: 0 16px 40px; max-width: 980px; margin: 0 auto; }
+
+  .layout { display: flex; gap: 10px; align-items: flex-start; }
+  .main { flex: 1; min-width: 0; }
+  .sidebar { width: 200px; flex-shrink: 0; position: sticky; top: 10px; }
+  @media (max-width: 680px) { .layout { flex-direction: column-reverse; } .sidebar { width: auto; position: static; } }
+
+  .save { display: flex; gap: 6px; margin-bottom: 10px; }
+  .save input { flex: 1; min-width: 0; font: inherit; color: var(--ink); background: var(--panel2);
+    border: 1px solid var(--line); padding: 5px 8px; }
+  .save input::placeholder { color: var(--amber-dim); }
+  .inst { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+  .inst .nm { flex: 1; min-width: 0; color: var(--ink); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inst .nm:hover { color: var(--amber-hi); }
+  .inst .nm.on { color: var(--amber); font-weight: 700; }
+  .inst .del { cursor: pointer; color: var(--amber-dim); font-weight: 700; padding: 0 2px; }
+  .inst .del:hover { color: var(--rust); }
+  .empty { color: var(--amber-dim); font-size: 11px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px;
+    padding: 18px 0 13px; border-bottom: 2px solid var(--line); }
+  .wordmark { font-weight: 800; font-size: 20px; letter-spacing: -0.5px; }
+  .wordmark b { color: var(--amber); }
+  header .sub { color: var(--amber-dim); font-weight: 500; }
+  header .spacer { flex: 1; }
+  #status { color: var(--sage); font-weight: 700; }
+  #status.off { color: var(--rust); }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); padding: 12px 13px 14px; margin-top: 10px; }
+  .phead { display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 10px; padding-bottom: 7px; border-bottom: 1px solid var(--line); }
+  .phead h2 { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: 0.3px; }
+  .phead .hint { font-size: 11px; color: var(--amber-dim); font-weight: 500; }
+
+  .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px 20px; }
+  .glab { font-weight: 800; color: var(--amber); font-size: 11px; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .ctrl { display: grid; grid-template-columns: 7ch 1fr 5ch; align-items: center; gap: 8px; padding: 2px 0; }
+  .ctrl label { color: var(--ink); }
+  .ctrl .val { text-align: right; color: var(--amber); font-weight: 700; }
+  .seg { display: flex; border: 1px solid var(--line); }
+  .seg span { flex: 1; text-align: center; padding: 1px 0; color: var(--amber-dim); font-weight: 500; cursor: pointer; }
+  .seg span.on { background: var(--amber); color: var(--bg); font-weight: 700; }
+
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 14px; background: transparent; cursor: pointer; margin: 0; }
+  input[type=range]::-webkit-slider-runnable-track { height: 3px; background: var(--line); }
+  input[type=range]::-moz-range-track { height: 3px; background: var(--line); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 4px; height: 14px; background: var(--amber); margin-top: -5.5px; }
+  input[type=range]::-moz-range-thumb { width: 4px; height: 14px; border: 0; background: var(--amber); }
+  input[type=range]:hover::-webkit-slider-thumb { background: var(--amber-hi); }
+  input[type=range]:hover::-moz-range-thumb { background: var(--amber-hi); }
+
+  .keys { display: flex; flex-direction: column; gap: 5px; }
+  .krow { display: flex; gap: 5px; }
+  .krow.r2 { padding-left: 18px; }
+  .key { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--panel2);
+    padding: 11px 0 9px; text-align: center; cursor: pointer; user-select: none;
+    display: flex; flex-direction: column; gap: 2px; touch-action: none; }
+  .key .ch { font-weight: 700; }
+  .key .nt { font-size: 10px; color: var(--amber-dim); font-weight: 500; }
+  .key.down { background: var(--amber); }
+  .key.down .ch, .key.down .nt { color: var(--bg); }
+
+  .out { display: flex; align-items: flex-start; gap: 10px; }
+  pre.code { margin: 0; white-space: pre-wrap; word-break: break-all; color: var(--ink); font-size: 12.5px; line-height: 1.6; flex: 1; }
+  pre.code .fn { color: var(--amber); } pre.code .str { color: var(--sage); } pre.code .num { color: var(--amber-hi); }
+  .btn { font: inherit; font-weight: 700; color: var(--ink); background: var(--panel2);
+    border: 1px solid var(--line); padding: 5px 11px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: var(--amber); color: var(--amber-hi); }
+  .note { color: var(--amber-dim); font-size: 11px; margin: 18px 0 0; text-align: center; }
+</style>
+</head>
+<body>
+  <header>
+    <span class="wordmark">nectar <b>synth</b></span>
+    <span class="sub">A minor</span>
+    <span class="spacer"></span>
+    <span id="status" class="off">click to start audio</span>
+  </header>
+
+  <div class="layout">
+  <div class="main">
+
+  <section class="panel">
+    <div class="phead"><h2>voice</h2><span class="hint">one subtractive synth, play it by ear</span></div>
+    <div class="groups">
+      <div>
+        <div class="glab">oscillator</div>
+        <div class="ctrl"><label>sound</label><div class="seg" id="sound">
+          <span>tri</span><span>saw</span><span class="on">pulze</span><span>sine</span><span>square</span></div><span class="val"></span></div>
+        <div class="ctrl"><label>gain</label><input type="range" data-p="gain" data-dec="2" min="0" max="1" step="0.01" value="0.5"><span class="val">0.50</span></div>
+      </div>
+      <div>
+        <div class="glab">envelope</div>
+        <div class="ctrl"><label>attack</label><input type="range" data-p="attack" data-dec="3" min="0.001" max="2" step="0.001" value="0.01"><span class="val">0.010</span></div>
+        <div class="ctrl"><label>decay</label><input type="range" data-p="decay" data-dec="3" min="0" max="2" step="0.001" value="0.3"><span class="val">0.300</span></div>
+        <div class="ctrl"><label>sustain</label><input type="range" data-p="sustain" data-dec="2" min="0" max="1" step="0.01" value="0.6"><span class="val">0.60</span></div>
+        <div class="ctrl"><label>release</label><input type="range" data-p="release" data-dec="3" min="0.001" max="3" step="0.001" value="0.4"><span class="val">0.400</span></div>
+      </div>
+      <div>
+        <div class="glab">filter</div>
+        <div class="ctrl"><label>cutoff</label><input type="range" data-p="lpf" data-dec="0" min="100" max="16000" step="1" value="3000"><span class="val">3000</span></div>
+        <div class="ctrl"><label>res</label><input type="range" data-p="lpq" data-dec="1" min="0" max="16" step="0.1" value="6"><span class="val">6.0</span></div>
+      </div>
+      <div>
+        <div class="glab">sends</div>
+        <div class="ctrl"><label>reverb</label><input type="range" data-p="verb" data-dec="2" min="0" max="1" step="0.01" value="0.2"><span class="val">0.20</span></div>
+        <div class="ctrl"><label>delay</label><input type="range" data-p="delay" data-dec="2" min="0" max="1" step="0.01" value="0"><span class="val">0.00</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="phead"><h2>keyboard</h2><span class="hint">type anything, or click</span></div>
+    <div class="keys" id="keys"></div>
+  </section>
+
+  <section class="panel">
+    <div class="phead"><h2>strudel</h2><span class="hint">the sound as text, paste into a section</span></div>
+    <div class="out">
+      <pre class="code" id="strudel"></pre>
+      <button class="btn" id="copy">copy</button>
+    </div>
+  </section>
+
+  <p class="note">prototype · sound by dough (vendored, AGPL) · the text is the work</p>
+
+  </div><!-- /main -->
+
+  <aside class="sidebar">
+    <section class="panel">
+      <div class="phead"><h2>instruments</h2><span class="hint">saved patches</span></div>
+      <div class="save">
+        <input id="instName" placeholder="name this sound" maxlength="24" />
+        <button class="btn" id="saveInst">save</button>
+      </div>
+      <div id="instList"></div>
+    </section>
+  </aside>
+  </div><!-- /layout -->
+
+<script type="module">
+  import { Dough } from "./dough.js";
+  const dough = new Dough({ base: "./" });
+
+  // keyboard: every letter and number row, mapped over an A-minor scale.
+  // rows run high to low down the screen; each row starts an octave below the one above.
+  const scale = [0, 2, 3, 5, 7, 8, 10];            // natural minor degrees
+  const names = ["a","b","c","d","e","f","g"];      // degree names, A minor
+  const rows = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"];
+  const rowBase = [21, 14, 7, 0];                   // step offset per row, 7 = one octave
+  const midi2freq = m => Math.pow(2, (m - 69) / 12) * 440;
+  function keyInfo(ri, ci) {
+    const step = rowBase[ri] + ci;
+    const oct = Math.floor(step / 7);
+    const deg = step % 7;
+    const midi = 45 + oct * 12 + scale[deg];        // 45 = A2 (bottom-left key)
+    return { midi, name: names[deg] + (2 + oct) };
+  }
+  // build key elements
+  const keysWrap = document.getElementById("keys");
+  const keyByChar = {};
+  rows.forEach((r, ri) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "krow";
+    rowEl.style.paddingLeft = (ri * 12) + "px";
+    keysWrap.appendChild(rowEl);
+    [...r].forEach((ch, ci) => {
+      const info = keyInfo(ri, ci);
+      const el = document.createElement("div");
+      el.className = "key";
+      el.innerHTML = `<span class="ch">${ch}</span><span class="nt">${info.name}</span>`;
+      el.dataset.midi = info.midi;
+      rowEl.appendChild(el);
+      keyByChar[ch] = el;
+      el.addEventListener("pointerdown", e => { e.preventDefault(); noteOn(ch); });
+      el.addEventListener("pointerup", () => noteOff(ch));
+      el.addEventListener("pointerleave", () => noteOff(ch));
+    });
+  });
+
+  // param state
+  const P = { sound: "pulze" };
+  const sliders = {};
+  document.querySelectorAll("input[type=range]").forEach(inp => {
+    sliders[inp.dataset.p] = inp;
+    P[inp.dataset.p] = parseFloat(inp.value);
+    const val = inp.parentElement.querySelector(".val");
+    inp.addEventListener("input", () => {
+      const v = parseFloat(inp.value);
+      P[inp.dataset.p] = v;
+      val.textContent = v.toFixed(+inp.dataset.dec);
+      dough.evaluate({ dough: "update_all", [inp.dataset.p]: v });
+      writeStrudel();
+    });
+  });
+  const soundSeg = document.getElementById("sound");
+  function setSound(name) {
+    soundSeg.querySelectorAll("span").forEach(x => x.classList.toggle("on", x.textContent === name));
+    P.sound = name;
+  }
+  soundSeg.querySelectorAll("span").forEach(s => s.addEventListener("click", () => {
+    setSound(s.textContent);
+    writeStrudel();
+  }));
+  // apply a whole saved patch to the controls + engine
+  function applyInstrument(params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (k === "sound") { setSound(v); continue; }
+      const inp = sliders[k]; if (!inp) continue;
+      inp.value = v;
+      inp.parentElement.querySelector(".val").textContent = (+v).toFixed(+inp.dataset.dec);
+      P[k] = +v;
+      dough.evaluate({ dough: "update_all", [k]: +v });
+    }
+    writeStrudel();
+  }
+
+  // audio inits on the first click (dough wires this itself); reflect it in status
+  const status = document.getElementById("status");
+  dough.ready.then(() => { status.textContent = "ready"; status.classList.remove("off"); })
+    .catch(e => { status.textContent = "audio failed"; console.error(e); });
+
+  // note on/off
+  const held = new Set();
+  function noteOn(ch) {
+    const el = keyByChar[ch]; if (!el || held.has(ch)) return;
+    held.add(ch); el.classList.add("down");
+    dough.evaluate({ dough: "play", freq: midi2freq(+el.dataset.midi), group: ch, voices: 1,
+      sound: P.sound, attack: P.attack, decay: P.decay, sustain: P.sustain, release: P.release,
+      lpf: P.lpf, lpq: P.lpq, verb: P.verb, delay: P.delay, gain: P.gain });
+  }
+  function noteOff(ch) {
+    const el = keyByChar[ch]; if (!el || !held.has(ch)) return;
+    held.delete(ch); el.classList.remove("down");
+    dough.evaluate({ dough: "hush_group", group: ch });
+  }
+  const typing = e => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+  document.addEventListener("keydown", e => {
+    if (e.repeat || e.metaKey || e.ctrlKey || typing(e)) return;
+    if (keyByChar[e.key]) { e.preventDefault(); noteOn(e.key); }
+  });
+  document.addEventListener("keyup", e => { if (!typing(e) && keyByChar[e.key]) noteOff(e.key); });
+
+  // strudel line that matches the sound
+  const n = (x, d) => (+x).toFixed(d).replace(/\.?0+$/, "") || "0";
+  function writeStrudel() {
+    let s = `<span class="fn">note</span>(<span class="str">"a3 c4 e4 g4"</span>)`;
+    s += `<span class="fn">.s</span>(<span class="str">"${P.sound}"</span>)`;
+    s += `<span class="fn">.attack</span>(<span class="num">${n(P.attack,3)}</span>)`;
+    s += `<span class="fn">.decay</span>(<span class="num">${n(P.decay,3)}</span>)`;
+    s += `<span class="fn">.sustain</span>(<span class="num">${n(P.sustain,2)}</span>)`;
+    s += `<span class="fn">.release</span>(<span class="num">${n(P.release,3)}</span>)`;
+    s += `<span class="fn">.lpf</span>(<span class="num">${Math.round(P.lpf)}</span>)`;
+    s += `<span class="fn">.lpq</span>(<span class="num">${n(P.lpq,1)}</span>)`;
+    if (P.verb > 0) s += `<span class="fn">.room</span>(<span class="num">${n(P.verb,2)}</span>)`;
+    if (P.delay > 0) s += `<span class="fn">.delay</span>(<span class="num">${n(P.delay,2)}</span>)`;
+    s += `<span class="fn">.gain</span>(<span class="num">${n(P.gain,2)}</span>)`;
+    document.getElementById("strudel").innerHTML = s;
+  }
+  writeStrudel();
+
+  document.getElementById("copy").addEventListener("click", () => {
+    const txt = document.getElementById("strudel").textContent;
+    navigator.clipboard?.writeText(txt);
+    const b = document.getElementById("copy"); b.textContent = "copied"; setTimeout(() => b.textContent = "copy", 1200);
+  });
+
+  // saved instruments, persisted per browser in localStorage
+  const STORE = "nectar.instruments";
+  const listEl = document.getElementById("instList");
+  const nameInp = document.getElementById("instName");
+  let current = null;
+  function loadStore() {
+    try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; }
+  }
+  function saveStore(arr) {
+    try { localStorage.setItem(STORE, JSON.stringify(arr)); } catch {}
+  }
+  function renderList() {
+    const arr = loadStore();
+    listEl.innerHTML = "";
+    if (!arr.length) { listEl.innerHTML = '<div class="empty">nothing saved yet</div>'; return; }
+    arr.forEach(inst => {
+      const row = document.createElement("div");
+      row.className = "inst";
+      const nm = document.createElement("span");
+      nm.className = "nm" + (inst.name === current ? " on" : "");
+      nm.textContent = inst.name;
+      nm.title = "load " + inst.name;
+      nm.addEventListener("click", () => { applyInstrument(inst.params); current = inst.name; renderList(); });
+      const del = document.createElement("span");
+      del.className = "del"; del.textContent = "x"; del.title = "delete";
+      del.addEventListener("click", () => {
+        saveStore(loadStore().filter(i => i.name !== inst.name));
+        if (current === inst.name) current = null;
+        renderList();
+      });
+      row.append(nm, del);
+      listEl.appendChild(row);
+    });
+  }
+  function snapshot() {
+    const p = { sound: P.sound };
+    for (const k in sliders) p[k] = P[k];
+    return p;
+  }
+  function saveInstrument() {
+    const name = (nameInp.value || "").trim();
+    if (!name) { nameInp.focus(); return; }
+    const arr = loadStore().filter(i => i.name !== name);
+    arr.push({ name, params: snapshot() });
+    arr.sort((a, b) => a.name.localeCompare(b.name));
+    saveStore(arr);
+    current = name; nameInp.value = "";
+    renderList();
+  }
+  document.getElementById("saveInst").addEventListener("click", saveInstrument);
+  nameInp.addEventListener("keydown", e => { if (e.key === "Enter") saveInstrument(); });
+  renderList();
+</script>
+</body>
+</html>

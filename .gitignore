@@ -3,3 +3,5 @@ bin/nectar
 songs/*/render/
 songs/*/look/
 songs/_agenttest/
+songs/_uitest/
+packs/

@@ -31,6 +31,26 @@ A song is a directory of small deterministic programs plus an order to play them
 8. **Nothing is precious except the source.** `.strudel` files and `samples/` are the
    work. Everything else can be regenerated.
 
+## How a song gets made
+
+The song grows by forking whatever is on screen. Helix does the forking, the console
+does the listening.
+
+```
+write a loop          sections/01-loop.strudel      :w
+hear it               the console renders it and loops it back
+edit it               same buffer, different idea
+save it as a section  :w sections/02-main.strudel   now editing 02-main, 01-loop is frozen
+edit it more
+save it as the outro  :w sections/03-outro.strudel
+arrange               a in the console, or edit arrangement.txt
+render the song       r in the console: commits the sources, renders all, stitches
+```
+
+`:w <path>` in Helix is a real save as: the buffer re-points to the new file and the
+old section stays exactly as it was. Nothing is ever overwritten by forking, and every
+version you kept is still a file you can put back in the arrangement.
+
 ## Shape
 
 ```
@@ -160,6 +180,22 @@ four four. One tempo for the whole song is what keeps ten sections stitchable.
 
 Default is 16 cycles. For a 5 to 10 minute track, 8 to 12 sections of 30 to 60 seconds
 is a comfortable shape.
+
+**Keep sections short.** Rendering is faster than real time up to a point, then it is
+not. Measured on this machine:
+
+| audio | render |
+| --- | --- |
+| 8s | 2.1s |
+| 32s | 2.2s |
+| 64s | 7.9s |
+| 128s | 28.3s |
+
+About 1.7s of every render is chromium starting. Past roughly 32 seconds of audio the
+cost climbs fast, so sections of 16 to 32 cycles are the sweet spot: each one renders in
+about two seconds, which is what makes editing and relistening feel immediate. A ten
+minute track cut into twenty of those renders in well under a minute, while the same ten
+minutes as one long section would take many.
 
 **Arrangement** is one section name per line, `#` for comments, repeats welcome:
 
