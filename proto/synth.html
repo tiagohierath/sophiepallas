@@ -68,6 +68,8 @@
   input[type=range]:hover::-moz-range-thumb { background: var(--amber-hi); }
 
   .keys { display: flex; flex-direction: column; gap: 5px; }
+  .keytools { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--amber-dim); font-size: 11px; }
+  .keytools #octaveLabel { min-width: 58px; text-align: center; }
   .krow { display: flex; gap: 5px; }
   .krow.r2 { padding-left: 18px; }
   .key { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--panel2);
@@ -129,6 +131,12 @@
 
   <section class="panel">
     <div class="phead"><h2>keyboard</h2><span class="hint">type anything, or click</span></div>
+    <div class="keytools">
+      <button class="btn" id="octDown">octave −</button>
+      <span id="octaveLabel">A2–A5</span>
+      <button class="btn" id="octUp">octave +</button>
+      <button class="btn" id="sustain" aria-pressed="false">sustain off</button>
+    </div>
     <div class="keys" id="keys"></div>
   </section>
 
@@ -167,6 +175,12 @@
   const rows = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"];
   const rowBase = [21, 14, 7, 0];                   // step offset per row, 7 = one octave
   const midi2freq = m => Math.pow(2, (m - 69) / 12) * 440;
+  let octaveShift = 0;
+  let sustain = false;
+  const octaveLabel = document.getElementById("octaveLabel");
+  function updateOctave() {
+    octaveLabel.textContent = `A${2 + octaveShift}–A${5 + octaveShift}`;
+  }
   function keyInfo(ri, ci) {
     const step = rowBase[ri] + ci;
     const oct = Math.floor(step / 7);
@@ -240,17 +254,19 @@
 
   // note on/off
   const held = new Set();
+  const sustained = new Set();
   function noteOn(ch) {
     const el = keyByChar[ch]; if (!el || held.has(ch)) return;
     held.add(ch); el.classList.add("down");
-    dough.evaluate({ dough: "play", freq: midi2freq(+el.dataset.midi), group: ch, voices: 1,
+    dough.evaluate({ dough: "play", freq: midi2freq(+el.dataset.midi + octaveShift * 12), group: ch, voices: 1,
       sound: P.sound, attack: P.attack, decay: P.decay, sustain: P.sustain, release: P.release,
       lpf: P.lpf, lpq: P.lpq, verb: P.verb, delay: P.delay, gain: P.gain });
   }
   function noteOff(ch) {
     const el = keyByChar[ch]; if (!el || !held.has(ch)) return;
     held.delete(ch); el.classList.remove("down");
-    dough.evaluate({ dough: "hush_group", group: ch });
+    if (sustain) sustained.add(ch);
+    else dough.evaluate({ dough: "hush_group", group: ch });
   }
   const typing = e => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
   document.addEventListener("keydown", e => {
@@ -258,6 +274,22 @@
     if (keyByChar[e.key]) { e.preventDefault(); noteOn(e.key); }
   });
   document.addEventListener("keyup", e => { if (!typing(e) && keyByChar[e.key]) noteOff(e.key); });
+  document.getElementById("octDown").addEventListener("click", () => {
+    octaveShift = Math.max(-2, octaveShift - 1); updateOctave();
+  });
+  document.getElementById("octUp").addEventListener("click", () => {
+    octaveShift = Math.min(2, octaveShift + 1); updateOctave();
+  });
+  document.getElementById("sustain").addEventListener("click", e => {
+    sustain = !sustain;
+    e.currentTarget.textContent = sustain ? "sustain on" : "sustain off";
+    e.currentTarget.setAttribute("aria-pressed", sustain);
+    if (!sustain) {
+      for (const ch of sustained) dough.evaluate({ dough: "hush_group", group: ch });
+      sustained.clear();
+    }
+  });
+  updateOctave();
 
   // strudel line that matches the sound
   const n = (x, d) => (+x).toFixed(d).replace(/\.?0+$/, "") || "0";
