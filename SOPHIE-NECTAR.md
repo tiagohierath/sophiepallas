@@ -1,7 +1,7 @@
 # sophie-nectar
 
 Download the latest release archive from GitHub, extract it, and run
-`./bin/sophie-nectar`. Linux users can run `./install.sh` to add Sophie Nectar
+`./sophie-pallas`. Linux users can run `./install.sh` to add Sophie Nectar
 to the applications menu. The workstation still needs `ffmpeg` and `mpv` for
 rendering and playback.
 
