@@ -20,7 +20,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -117,9 +116,7 @@ func main() {
 	}()
 
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
-	winch := make(chan os.Signal, 1)
-	signal.Notify(winch, syscall.SIGWINCH)
+	signal.Notify(quit, os.Interrupt)
 	tick := time.NewTicker(300 * time.Millisecond)
 	defer tick.Stop()
 
@@ -129,11 +126,6 @@ func main() {
 		case <-quit:
 			leave()
 			return
-		case <-winch:
-			w, _ := termSize()
-			a.shapeCols = shapeWidth(w)
-			a.song = load(a.root, a.name, a.shapeCols)
-			a.draw()
 		case <-tick.C:
 			// the panel keeps itself honest: anything Helix writes shows up here
 			if stamp(a.root, a.name) != a.song.stamp {
