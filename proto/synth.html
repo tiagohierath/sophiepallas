@@ -273,7 +273,20 @@
     if (e.repeat || e.metaKey || e.ctrlKey || typing(e)) return;
     if (keyByChar[e.key]) { e.preventDefault(); noteOn(e.key); }
   });
-  document.addEventListener("keyup", e => { if (!typing(e) && keyByChar[e.key]) noteOff(e.key); });
+  document.addEventListener("keyup", e => { if (keyByChar[e.key]) noteOff(e.key); });
+  // A keyup can be lost when the window or tab loses focus.
+  function releaseAllNotes() {
+    for (const ch of new Set([...held, ...sustained])) {
+      dough.evaluate({ dough: "hush_group", group: ch });
+      keyByChar[ch].classList.remove("down");
+    }
+    held.clear();
+    sustained.clear();
+  }
+  window.addEventListener("blur", releaseAllNotes);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) releaseAllNotes();
+  });
   document.getElementById("octDown").addEventListener("click", () => {
     octaveShift = Math.max(-2, octaveShift - 1); updateOctave();
   });
