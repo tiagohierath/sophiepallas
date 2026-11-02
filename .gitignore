@@ -5,3 +5,6 @@ songs/*/look/
 songs/_agenttest/
 songs/_uitest/
 packs/
+
+# built strudel bundle (too large for jj snapshot)
+proto/strudel-repl.js

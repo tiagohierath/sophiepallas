@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+cd "$ROOT"
+
+if [[ ! -x "$ROOT/bin/nectar" ]]; then
+  echo "Sophie Nectar is not built yet. Run: ./bin/build" >&2
+  exit 1
+fi
+
+for tool in ffmpeg mpv; do
+  command -v "$tool" >/dev/null || {
+    echo "Missing required command: $tool" >&2
+    echo "Install ffmpeg and mpv, then try again." >&2
+    exit 1
+  }
+done
+
+exec "$ROOT/bin/nectar" "${1:-demo}" "${@:2}"

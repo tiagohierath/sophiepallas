@@ -205,11 +205,10 @@ func (a *app) press(k byte) bool {
 	case 'o':
 		a.view = "sounds"
 	case 'p': // the stitched song, one pass
-		total, _ := a.song.total()
-		a.play(filepath.Join(a.dir(), "render", "final.wav"), "final", total, false)
+		a.play(filepath.Join(a.dir(), "render", "final.wav"), "final")
 	case '\r', '\n': // listen to the section under the cursor, round and round
 		if s, ok := a.at(); ok {
-			a.play(filepath.Join(a.dir(), "render", s.name+".wav"), s.name, s.length(), true)
+			a.play(filepath.Join(a.dir(), "render", s.name+".wav"), s.name)
 		}
 	case ' ':
 		stop()
@@ -249,7 +248,7 @@ func (a *app) follow() {
 	if !ok {
 		return
 	}
-	a.play(filepath.Join(a.dir(), "render", s.name+".wav"), s.name, s.length(), true)
+	a.play(filepath.Join(a.dir(), "render", s.name+".wav"), s.name)
 }
 
 func (a *app) dir() string            { return filepath.Join(a.root, "songs", a.name) }
@@ -281,6 +280,44 @@ func (a *app) act(label string, args ...string) {
 	var b [1]byte
 	os.Stdin.Read(b[:])
 	a.song = load(a.root, a.name, a.shapeCols)
+}
+
+// Small lifecycle hooks kept in one place so the panel remains usable even
+// when no background render is running.
+func (a *app) poll() {}
+
+func (a *app) finish(res render) {
+	a.rendering = false
+	if res.err != nil {
+		a.status = res.name + " failed"
+	} else {
+		a.status = res.name + " finished"
+	}
+}
+
+func (a *app) snapshot() string { return "" }
+
+func (a *app) toggleWatch() {
+	if a.watch == "" {
+		if s, ok := a.at(); ok {
+			a.watch = s.name
+			a.status = "watching " + s.name
+		}
+	} else {
+		a.watch = ""
+		a.status = "watch off"
+	}
+}
+
+func (a *app) arrange(name string) {
+	path := filepath.Join(a.dir(), "arrangement.txt")
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err == nil {
+		_, _ = fmt.Fprintln(f, name)
+		_ = f.Close()
+		a.song = load(a.root, a.name, a.shapeCols)
+		a.status = "added " + name
+	}
 }
 
 func (a *app) play(path, label string) {

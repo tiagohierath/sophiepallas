@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Sophie Nectar
+Comment=Text-based Strudel music workstation
+Exec=@EXEC@
+Terminal=true
+Categories=AudioVideo;Audio;Music;

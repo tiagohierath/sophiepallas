@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>sophie nectar</title>
+<style>
+  * { box-sizing:border-box; border-radius:0; }
+  html,body { margin:0; background:#222; color:#eee; font-family:monospace; }
+  nav { display:flex; gap:8px; padding:8px; }
+  button { font:inherit; font-size:16px; padding:8px 20px; background:#333; color:#eee;
+    border:1px solid #e9a63a; cursor:pointer; }
+</style>
+</head>
+<body>
+<nav><button id="play">play</button><button id="stop">stop</button></nav>
+<strudel-editor id="ed"><!--
+// _ in front of a name mutes it
+setcps(.5)
+
+kick: s("bd*4").duck(2)
+
+hats: s("[~ hh]*4").gain(.4)
+
+bass: note("<a1 f1 c2 g1>")
+  .struct("[~ x]*4").s("sine")
+  .orbit(2)
+
+pad: note("<[c3,e3,g3,b3] [a2,c3,e3,g3] [b2,d3,e3,g3] [b2,d3,e3,a3]>")
+  .s("supersaw").gain(.35)
+  .lpf(slider(1200, 200, 5000))
+  .attack(.5).release(2)
+  .room(slider(.7, 0, 1)).size(8)
+  .orbit(2)
+
+arp: n("0 2 4 7 4 2 0 ~")
+  .scale("A4:minor:pentatonic")
+  .s("triangle").gain(.5)
+  .decay(.15).sustain(0)
+  .delay(slider(.5, 0, .9))
+  .orbit(3)
+--></strudel-editor>
+<script src="./strudel-repl.js"></script>
+<script>
+  const ed = document.getElementById('ed');
+  play.onclick = () => ed.editor.evaluate();
+  stop.onclick = () => ed.editor.stop();
+</script>
+</body>
+</html>
